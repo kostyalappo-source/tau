@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tau DB Builder</title>
+<style>
+  :root{
+    --bg:#0b0d0c;
+    --panel:#12100d;
+    --line:#2a2620;
+    --amber:#ffb02a;
+    --amber-dim:#8a6420;
+    --green:#5fd97a;
+    --red:#ff5c4d;
+    --text:#e9e4d8;
+    --text-dim:#8c8578;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(255,176,42,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+
+  .scope{
+    display:flex; align-items:center; gap:10px; margin-bottom:6px;
+  }
+  .dot{
+    width:9px;height:9px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 10px 2px rgba(255,176,42,0.6);
+    animation:pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;} 50%{opacity:.35;}
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    color:var(--amber-dim); text-transform:uppercase;
+  }
+  h1{
+    font-family:var(--mono);
+    font-size:26px; font-weight:600; letter-spacing:-0.01em;
+    margin:2px 0 6px; color:var(--text);
+  }
+  .sub{color:var(--text-dim); font-size:14px; line-height:1.55; margin:0 0 34px; max-width:56ch;}
+  .sub b{color:var(--text);font-weight:600;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .panel-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--text-dim); margin-bottom:14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .badge{
+    font-family:var(--mono); font-size:10px; padding:2px 7px;
+    border-radius:20px; border:1px solid var(--line); color:var(--text-dim);
+  }
+  .badge.ok{color:var(--green); border-color:rgba(95,217,122,.35); background:rgba(95,217,122,.08);}
+
+  .drop{
+    border:1.5px dashed var(--line);
+    border-radius:8px;
+    padding:22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    font-size:13.5px;
+    color:var(--text-dim);
+  }
+  .drop:hover, .drop.drag{
+    border-color:var(--amber-dim);
+    background:rgba(255,176,42,0.04);
+  }
+  .drop .big{color:var(--text); font-size:14px; margin-bottom:4px;}
+  .drop input{display:none;}
+
+  .filelist{margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+  .fileitem{
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:var(--mono); font-size:12.5px;
+    background:rgba(255,255,255,.02);
+    border:1px solid var(--line);
+    border-radius:6px; padding:8px 10px;
+  }
+  .fileitem .name{color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .fileitem .size{color:var(--text-dim); margin-left:10px; flex-shrink:0;}
+  .fileitem button{
+    background:none;border:none;color:var(--text-dim);cursor:pointer;
+    font-size:15px; margin-left:10px; line-height:1;
+  }
+  .fileitem button:hover{color:var(--red);}
+
+  .row{display:flex; align-items:center; justify-content:space-between; padding:10px 2px;}
+  .row + .row{border-top:1px solid var(--line);}
+  .row .label{font-size:13.5px;}
+  .row .desc{font-size:12px;color:var(--text-dim); margin-top:2px;}
+
+  .toggle{
+    position:relative; width:38px; height:22px; border-radius:20px;
+    background:var(--line); border:none; cursor:pointer; flex-shrink:0;
+    transition:background .15s;
+  }
+  .toggle::after{
+    content:''; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    border-radius:50%; background:var(--text-dim); transition:transform .15s, background .15s;
+  }
+  .toggle.on{background:rgba(255,176,42,.18);}
+  .toggle.on::after{transform:translateX(16px); background:var(--amber);}
+
+  .run{
+    width:100%; padding:14px; border-radius:8px; border:1px solid var(--amber-dim);
+    background:linear-gradient(180deg, rgba(255,176,42,.14), rgba(255,176,42,.05));
+    color:var(--amber); font-family:var(--mono); font-size:14px; font-weight:600;
+    letter-spacing:.04em; cursor:pointer; margin-top:4px;
+    transition:opacity .15s;
+  }
+  .run:disabled{opacity:.35; cursor:not-allowed;}
+  .run:not(:disabled):hover{background:linear-gradient(180deg, rgba(255,176,42,.22), rgba(255,176,42,.08));}
+
+  .log{
+    font-family:var(--mono); font-size:12.5px; line-height:1.7;
+    color:var(--text-dim); white-space:pre-wrap; word-break:break-word;
+    max-height:260px; overflow-y:auto;
+  }
+  .log .ok{color:var(--green);}
+  .log .warn{color:var(--amber);}
+  .log .err{color:var(--red);}
+  .log .head{color:var(--text);}
+
+  .download{
+    display:none;
+    margin-top:14px; text-align:center; text-decoration:none;
+    padding:13px; border-radius:8px; background:var(--green); color:#0b0d0c;
+    font-family:var(--mono); font-weight:700; font-size:14px;
+  }
+  .download.show{display:block;}
+
+  footer{
+    text-align:center; color:var(--text-dim); font-size:11.5px;
+    font-family:var(--mono); margin-top:28px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="scope"><span class="dot"></span><span class="eyebrow">Inspector RD X3 Tau · offline tool</span></div>
+  <h1>tau-db-builder</h1>
+  <p class="sub">Собирает <b>.hdr</b>-базу радара из открытых CSV (формат iGoExt, speedcamonline.ru).
+  Всё считается в этой вкладке — файлы никуда не отправляются.</p>
+
+  <div class="panel">
+    <div class="panel-title">01 · Базовый .hdr <span class="badge" id="baseBadge">не выбран</span></div>
+    <div class="drop" id="baseDrop">
+      <div class="big">Перетащи оригинальный TAU*.hdr сюда</div>
+      кликом тоже можно выбрать файл
+      <input type="file" id="baseInput" accept=".hdr,.bin">
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">02 · Источники (CSV, iGoExt) <span class="badge" id="srcBadge">0 файлов</span></div>
+    <div class="drop" id="srcDrop">
+      <div class="big">Перетащи один или несколько .csv / .txt</div>
+      РБ, Смоленская, Московская, Германия, Польша — сколько угодно за раз
+      <input type="file" id="srcInput" accept=".csv,.txt" multiple>
+    </div>
+    <div class="filelist" id="srcList"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">03 · Параметры</div>
+    <div class="row">
+      <div>
+        <div class="label">Обновить дату базы на сегодня</div>
+        <div class="desc">Меняет дату в суб-заголовке файла на текущую</div>
+      </div>
+      <button class="toggle on" id="toggleDate"></button>
+    </div>
+  </div>
+
+  <button class="run" id="runBtn" disabled>Собрать базу</button>
+  <a class="download" id="downloadLink">скачать итоговый .hdr</a>
+
+  <div class="panel" id="logPanel" style="display:none;">
+    <div class="panel-title">Журнал</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <footer>lat/lon × 1e5 · 12-байтная секция · направление + скорость</footer>
+</div>
+
+<script>
+let baseFile = null;
+let baseBytes = null;
+let sourceFiles = []; // {name, size, text}
+
+const baseDrop = document.getElementById('baseDrop');
+const baseInput = document.getElementById('baseInput');
+const baseBadge = document.getElementById('baseBadge');
+const srcDrop = document.getElementById('srcDrop');
+const srcInput = document.getElementById('srcInput');
+const srcBadge = document.getElementById('srcBadge');
+const srcList = document.getElementById('srcList');
+const runBtn = document.getElementById('runBtn');
+const toggleDate = document.getElementById('toggleDate');
+const logPanel = document.getElementById('logPanel');
+const logEl = document.getElementById('log');
+const downloadLink = document.getElementById('downloadLink');
+
+function setupDrop(dropEl, onFiles){
+  dropEl.addEventListener('click', () => dropEl.querySelector('input').click());
+  ['dragenter','dragover'].forEach(ev => dropEl.addEventListener(ev, e => {
+    e.preventDefault(); dropEl.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev => dropEl.addEventListener(ev, e => {
+    e.preventDefault(); dropEl.classList.remove('drag');
+  }));
+  dropEl.addEventListener('drop', e => onFiles(e.dataTransfer.files));
+}
+
+setupDrop(baseDrop, files => { if(files.length) loadBase(files[0]); });
+baseInput.addEventListener('change', e => { if(e.target.files.length) loadBase(e.target.files[0]); });
+
+setupDrop(srcDrop, files => addSources(files));
+srcInput.addEventListener('change', e => addSources(e.target.files));
+
+[toggleDate].forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+
+function loadBase(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    baseBytes = new Uint8Array(reader.result);
+    baseFile = file;
+    baseBadge.textContent = `${file.name} · ${(file.size/1024).toFixed(0)} КБ`;
+    baseBadge.classList.add('ok');
+    updateRunState();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function addSources(fileListLike){
+  const files = Array.from(fileListLike).filter(f => {
+    const n = f.name.toLowerCase();
+    return n.endsWith('.csv') || n.endsWith('.txt');
+  });
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      sourceFiles.push({name:file.name, size:file.size, text:reader.result});
+      renderSrcList();
+      updateRunState();
+    };
+    reader.readAsText(file);
+  });
+}
+
+function renderSrcList(){
+  srcBadge.textContent = sourceFiles.length + (sourceFiles.length===1?' файл':' файлов');
+  if(sourceFiles.length) srcBadge.classList.add('ok'); else srcBadge.classList.remove('ok');
+  srcList.innerHTML = '';
+  sourceFiles.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'fileitem';
+    div.innerHTML = `<span class="name">${f.name}</span>
+      <span class="size">${(f.size/1024).toFixed(0)} КБ</span>
+      <button data-i="${i}">✕</button>`;
+    div.querySelector('button').addEventListener('click', () => {
+      sourceFiles.splice(i,1);
+      renderSrcList();
+      updateRunState();
+    });
+    srcList.appendChild(div);
+  });
+}
+
+function updateRunState(){
+  runBtn.disabled = !(baseBytes && sourceFiles.length);
+}
+
+function log(msg, cls){
+  logPanel.style.display = 'block';
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog(){ logEl.innerHTML=''; }
+
+// ---- CSV (iGoExt) parsing ----
+function parseIgoExt(text, filename){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if(!lines.length) return [];
+  const header = lines[0].split(',').map(h => h.trim().toUpperCase());
+  const idx = name => header.indexOf(name);
+  const iX = idx('X'), iY = idx('Y'), iSpeed = idx('SPEED'), iDir = idx('DIRECTION'), iType = idx('TYPE');
+  if(iX<0 || iY<0){
+    log(`  ${filename}: нет колонок X/Y, пропускаю`, 'err');
+    return [];
+  }
+  const points = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(',');
+    const lon = parseFloat(cols[iX]);
+    const lat = parseFloat(cols[iY]);
+    let speed = iSpeed>=0 ? parseInt(cols[iSpeed],10) : 0;
+    let dir = iDir>=0 ? Math.round(parseFloat(cols[iDir])) : 0;
+    const igoType = iType>=0 ? parseInt(cols[iType],10) : 0;
+    if(igoType === 227) continue; // Автодория — отдельный конвейер, см. parseAvtodoriaPairs
+    if(!isFinite(lat) || !isFinite(lon)) continue;
+    if(!isFinite(speed) || speed<=0) continue;
+    if(!isFinite(dir)) dir = 0;
+    dir = ((dir % 360) + 360) % 360;
+    if(lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+    points.push({lat, lon, dir, speed});
+  }
+  log(`  ${filename}: ${points.length} точек`);
+  return points;
+}
+
+function parseAvtodoriaPairs(text, filename){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if(!lines.length) return [];
+  const header = lines[0].split(',').map(h => h.trim().toUpperCase());
+  const idx = name => header.indexOf(name);
+  const iX = idx('X'), iY = idx('Y'), iSpeed = idx('SPEED'), iType = idx('TYPE');
+  if(iX<0 || iY<0 || iType<0) return [];
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(',');
+    const igoType = parseInt(cols[iType],10);
+    if(igoType !== 227) continue;
+    const lon = parseFloat(cols[iX]);
+    const lat = parseFloat(cols[iY]);
+    const speed = iSpeed>=0 ? parseInt(cols[iSpeed],10) : 0;
+    if(!isFinite(lat) || !isFinite(lon)) continue;
+    if(lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+    rows.push({lat, lon, speed});
+  }
+  const pairs = [];
+  for(let i=0; i+1<rows.length; i+=2){
+    const s = rows[i], f = rows[i+1];
+    const speed = s.speed || f.speed;
+    if(speed <= 0) continue;
+    pairs.push({slat:s.lat, slon:s.lon, flat:f.lat, flon:f.lon, speed});
+  }
+  if(pairs.length) log(`  ${filename}: ${pairs.length} пар Автодории`);
+  return pairs;
+}
+
+function bearing(lat1, lon1, lat2, lon2){
+  const toRad = x => x*Math.PI/180;
+  const lat1r=toRad(lat1), lon1r=toRad(lon1), lat2r=toRad(lat2), lon2r=toRad(lon2);
+  const dlon = lon2r - lon1r;
+  const x = Math.sin(dlon) * Math.cos(lat2r);
+  const y = Math.cos(lat1r)*Math.sin(lat2r) - Math.sin(lat1r)*Math.cos(lat2r)*Math.cos(dlon);
+  return Math.round((Math.atan2(x,y)*180/Math.PI + 360) % 360);
+}
+
+function estimateValFromSpeed(speed){
+  // val ≈ 27.77*speed — подтверждено полевым тестом (2 из 3 тестовых зон Автодории сработали)
+  return Math.max(0, Math.min(65535, Math.round(27.77*speed)));
+}
+
+function dedupe(points){
+  const seen = new Set();
+  const out = [];
+  for(const p of points){
+    const key = p.lat.toFixed(5)+'_'+p.lon.toFixed(5)+'_'+p.dir;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
+function haversineM(lat1, lon1, lat2, lon2){
+  const R = 6371000;
+  const toRad = x => x*Math.PI/180;
+  const dphi = toRad(lat2-lat1), dlmb = toRad(lon2-lon1);
+  const a = Math.sin(dphi/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dlmb/2)**2;
+  return R * 2*Math.asin(Math.sqrt(a));
+}
+
+function buildIndexGrid(records, cellDeg){
+  const grid = new Map();
+  records.forEach((r, i) => {
+    const key = Math.round(r.lat/cellDeg)+'_'+Math.round(r.lon/cellDeg);
+    if(!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(i);
+  });
+  return grid;
+}
+
+function findNearbyIndices(lat, lon, grid, records, cellDeg, thresholdM){
+  const cx = Math.round(lat/cellDeg), cy = Math.round(lon/cellDeg);
+  const hits = [];
+  for(let dx=-1; dx<=1; dx++){
+    for(let dy=-1; dy<=1; dy++){
+      const idxs = grid.get((cx+dx)+'_'+(cy+dy));
+      if(!idxs) continue;
+      for(const idx of idxs){
+        const r = records[idx];
+        if(haversineM(lat, lon, r.lat, r.lon) <= thresholdM) hits.push(idx);
+      }
+    }
+  }
+  return hits;
+}
+
+function dirDiff(a, b){
+  const d = Math.abs(a-b) % 360;
+  return Math.min(d, 360-d);
+}
+
+function mergeNearDuplicates(points, mergeThresholdM, maxDirDiff){
+  const coords = points.map(p => ({lat:p.lat, lon:p.lon}));
+  const grid = buildIndexGrid(coords, 0.001);
+  const mergedInto = new Map();
+  for(let i=0; i<points.length; i++){
+    if(mergedInto.has(i)) continue;
+    const hits = findNearbyIndices(points[i].lat, points[i].lon, grid, coords, 0.001, mergeThresholdM);
+    for(const j of hits){
+      if(j===i || mergedInto.has(j)) continue;
+      if(dirDiff(points[i].dir, points[j].dir) <= maxDirDiff){
+        mergedInto.set(j, i);
+      }
+    }
+  }
+  return points.filter((p,i) => !mergedInto.has(i));
+}
+
+// ---- binary build ----
+runBtn.addEventListener('click', () => {
+  clearLog();
+  downloadLink.classList.remove('show');
+  try{
+    if(baseBytes.length < 1036){
+      log('Базовый файл слишком мал — это не похоже на .hdr Inspector Tau', 'err');
+      return;
+    }
+    const dv = new DataView(baseBytes.buffer, baseBytes.byteOffset, baseBytes.byteLength);
+    const origCount1 = dv.getUint32(1028, true);
+    const origCount2 = dv.getUint32(1032, true);
+    const sec1Start = 1036;
+    const sec1End = sec1Start + origCount1*12;
+
+    if(sec1End > baseBytes.length){
+      log('Счётчик секции 1 в файле не сходится с его размером — файл повреждён или формат другой', 'err');
+      return;
+    }
+
+    log('Читаю источники…', 'head');
+    let allPoints = [];
+    let allAvtoPairs = [];
+    for(const f of sourceFiles){
+      allPoints = allPoints.concat(parseIgoExt(f.text, f.name));
+      allAvtoPairs = allAvtoPairs.concat(parseAvtodoriaPairs(f.text, f.name));
+    }
+    const merged0 = dedupe(allPoints);
+    const merged = mergeNearDuplicates(merged0, 30, 25);
+    log(`Итого после объединения и удаления дублей: ${merged0.length} точек, после схлопывания близких (<30м) почти-дублей: ${merged.length}`, 'ok');
+
+    // читаем сырые записи обеих секций для поиска совпадений
+    log('Ищу совпадения с существующими записями секций 1 и 2…');
+    const CELL_DEG = 0.001, THRESHOLD_M = 70;
+    const sec1Records = []; // {lat, lon, raw: Uint8Array(12)}
+    {
+      let p = sec1Start;
+      for(let i=0; i<origCount1; i++){
+        const lat = dv.getUint32(p, true)/1e5;
+        const lon = dv.getUint32(p+4, true)/1e5;
+        sec1Records.push({lat, lon, raw: baseBytes.slice(p, p+12)});
+        p += 12;
+      }
+    }
+    const sec2Records = []; // {lat, lon, raw: Uint8Array(14)}
+    {
+      let p = sec1End;
+      for(let i=0; i<origCount2; i++){
+        const lat = dv.getUint32(p, true)/1e5;
+        const lon = dv.getUint32(p+4, true)/1e5;
+        sec2Records.push({lat, lon, raw: baseBytes.slice(p, p+14)});
+        p += 14;
+      }
+    }
+    const sec1Grid = buildIndexGrid(sec1Records, CELL_DEG);
+    const sec2Grid = buildIndexGrid(sec2Records, CELL_DEG);
+    const sec2Updates = new Map(); // idx -> {latRaw, lonRaw}
+    const sec1Updates = new Map(); // idx -> {latRaw, lonRaw, dir, speed}
+    const orphanMirror = [];
+    const genuinelyNewCameras = [];
+    const sortedPoints = merged.slice().sort((a,b) => a.lat - b.lat || a.lon - b.lon);
+    const claimedSec2 = new Set();
+    const claimedSec1 = new Set();
+    for(const pt of sortedPoints){
+      const sec2Hits = findNearbyIndices(pt.lat, pt.lon, sec2Grid, sec2Records, CELL_DEG, THRESHOLD_M)
+        .filter(i => !claimedSec2.has(i));
+      if(sec2Hits.length){
+        let bestIdx = sec2Hits[0], bestD = haversineM(pt.lat, pt.lon, sec2Records[sec2Hits[0]].lat, sec2Records[sec2Hits[0]].lon);
+        for(const idx of sec2Hits){
+          const d = haversineM(pt.lat, pt.lon, sec2Records[idx].lat, sec2Records[idx].lon);
+          if(d < bestD){ bestD = d; bestIdx = idx; }
+        }
+        sec2Updates.set(bestIdx, {latRaw: Math.round(pt.lat*100000), lonRaw: Math.round(pt.lon*100000)});
+        claimedSec2.add(bestIdx);
+        // section1 — зеркало именно type7-записей (подтверждено: 122/122 точек совпадают 1:1 с type7)
+        const matchedType = sec2Records[bestIdx].raw[8];
+        if(matchedType === 7){
+          const sec1HitsInner = findNearbyIndices(pt.lat, pt.lon, sec1Grid, sec1Records, CELL_DEG, THRESHOLD_M)
+            .filter(i => !claimedSec1.has(i));
+          if(sec1HitsInner.length){
+            let b1 = sec1HitsInner[0], bd1 = haversineM(pt.lat, pt.lon, sec1Records[sec1HitsInner[0]].lat, sec1Records[sec1HitsInner[0]].lon);
+            for(const idx of sec1HitsInner){
+              const d = haversineM(pt.lat, pt.lon, sec1Records[idx].lat, sec1Records[idx].lon);
+              if(d < bd1){ bd1 = d; b1 = idx; }
+            }
+            sec1Updates.set(b1, {latRaw: Math.round(pt.lat*100000), lonRaw: Math.round(pt.lon*100000), dir: pt.dir, speed: pt.speed});
+            claimedSec1.add(b1);
+          } else {
+            orphanMirror.push(pt);
+          }
+        }
+        // для остальных типов (3,4,5,6,2) секцию 1 не трогаем вообще
+        continue;
+      }
+      const sec1Hits = findNearbyIndices(pt.lat, pt.lon, sec1Grid, sec1Records, CELL_DEG, THRESHOLD_M)
+        .filter(i => !claimedSec1.has(i));
+      if(sec1Hits.length){
+        let bestIdx = sec1Hits[0], bestD = haversineM(pt.lat, pt.lon, sec1Records[sec1Hits[0]].lat, sec1Records[sec1Hits[0]].lon);
+        for(const idx of sec1Hits){
+          const d = haversineM(pt.lat, pt.lon, sec1Records[idx].lat, sec1Records[idx].lon);
+          if(d < bestD){ bestD = d; bestIdx = idx; }
+        }
+        sec1Updates.set(bestIdx, {latRaw: Math.round(pt.lat*100000), lonRaw: Math.round(pt.lon*100000), dir: pt.dir, speed: pt.speed});
+        claimedSec1.add(bestIdx);
+        continue;
+      }
+      genuinelyNewCameras.push(pt);
+    }
+    log(`  Обновлено на месте в секции 2 (координаты): ${sec2Updates.size}`);
+    log(`  Обновлено на месте в секции 1: ${sec1Updates.size}`);
+    log(`  Восстановлено потерянных зеркал type7 в секции 1: ${orphanMirror.length}`);
+    log(`  По-настоящему новых камер (добавятся в секцию 2 как type3): ${genuinelyNewCameras.length}`, 'ok');
+
+    // --- по-настоящему новые обычные камеры идут в секцию 2 как новые type3-записи ---
+    const newCameraSec2Records = genuinelyNewCameras.map(p => {
+      const latRaw = Math.round(p.lat*100000), lonRaw = Math.round(p.lon*100000);
+      const val = estimateValFromSpeed(p.speed);
+      const rec = new Uint8Array(14); const cdv = new DataView(rec.buffer);
+      cdv.setUint32(0, latRaw, true); cdv.setUint32(4, lonRaw, true);
+      rec[8] = 3; rec[9] = 0x10; cdv.setUint16(10, val, true); cdv.setUint16(12, 0xFFFF, true);
+      return {latRaw, raw: rec};
+    });
+
+    // --- обработка пар Автодории (КСС) ---
+    let nextSec1Index = sec1Records.length + orphanMirror.length;
+    let newAvtoSec1Rows = [];
+    let newAvtoSec2Records = []; // {latRaw, raw: Uint8Array(14)}
+    let avtoSkipped = 0;
+    for(const pair of allAvtoPairs){
+      const hits = findNearbyIndices(pair.slat, pair.slon, sec2Grid, sec2Records, CELL_DEG, THRESHOLD_M);
+      const alreadyExists = hits.some(i => sec2Records[i].raw[8] === 2);
+      if(alreadyExists){ avtoSkipped++; continue; }
+
+      const val = estimateValFromSpeed(pair.speed);
+      const val2 = nextSec1Index;
+      const sLatRaw = Math.round(pair.slat*100000), sLonRaw = Math.round(pair.slon*100000);
+      const fLatRaw = Math.round(pair.flat*100000), fLonRaw = Math.round(pair.flon*100000);
+      const dir = bearing(pair.slat, pair.slon, pair.flat, pair.flon);
+
+      const startRec = new Uint8Array(14); const sdv = new DataView(startRec.buffer);
+      sdv.setUint32(0,sLatRaw,true); sdv.setUint32(4,sLonRaw,true); startRec[8]=2; startRec[9]=0x10; sdv.setUint16(10,val,true); sdv.setUint16(12,val2,true);
+      const finishRec = new Uint8Array(14); const fdv = new DataView(finishRec.buffer);
+      fdv.setUint32(0,fLatRaw,true); fdv.setUint32(4,fLonRaw,true); finishRec[8]=7; finishRec[9]=0x10; fdv.setUint16(10,val,true); fdv.setUint16(12,0xFFFF,true);
+
+      newAvtoSec2Records.push({latRaw:sLatRaw, raw:startRec});
+      newAvtoSec2Records.push({latRaw:fLatRaw, raw:finishRec});
+
+      const rec1 = new Uint8Array(12); const r1dv = new DataView(rec1.buffer);
+      r1dv.setUint32(0,fLatRaw,true); r1dv.setUint32(4,fLonRaw,true); r1dv.setUint16(8,dir,true); r1dv.setUint16(10,pair.speed,true);
+      newAvtoSec1Rows.push(rec1);
+      nextSec1Index++;
+    }
+    const newAvtoZones = newAvtoSec2Records.length/2;
+    log(`  Автодория: новых зон добавлено ${newAvtoZones}, уже существовало (пропущено) ${avtoSkipped}`, 'ok');
+
+    if(!merged.length){
+      log('Не нашлось ни одной валидной точки — файл не собран', 'err');
+      return;
+    }
+
+    // патчим координаты/направление/скорость у совпавших записей секции 1, остальные не трогаем
+    const patchedSec1Parts = sec1Records.map((r, i) => {
+      if(sec1Updates.has(i)){
+        const {latRaw, lonRaw, dir, speed} = sec1Updates.get(i);
+        const rec = new Uint8Array(12);
+        const rdv2 = new DataView(rec.buffer);
+        rdv2.setUint32(0, latRaw, true);
+        rdv2.setUint32(4, lonRaw, true);
+        rdv2.setUint16(8, dir, true);
+        rdv2.setUint16(10, speed, true);
+        return rec;
+      }
+      return r.raw;
+    });
+
+    const orphanBytes = new Uint8Array(orphanMirror.length * 12);
+    const nrdv = new DataView(orphanBytes.buffer);
+    orphanMirror.forEach((p, i) => {
+      const off = i*12;
+      nrdv.setUint32(off,   Math.round(p.lat*100000), true);
+      nrdv.setUint32(off+4, Math.round(p.lon*100000), true);
+      nrdv.setUint16(off+8, p.dir,   true);
+      nrdv.setUint16(off+10,p.speed, true);
+    });
+
+    const newCount1 = sec1Records.length + orphanMirror.length + newAvtoZones;
+
+    // header (0..1024) unchanged, subheader date optionally updated, counts rewritten
+    const head = baseBytes.slice(0, 1036);
+    const headDv = new DataView(head.buffer);
+    if(toggleDate.classList.contains('on')){
+      const now = new Date();
+      head[1024] = now.getDate();
+      head[1025] = 0;
+      head[1026] = now.getMonth()+1;
+      head[1027] = now.getFullYear() % 100;
+      log(`Дата базы обновлена: ${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`);
+    }
+
+    let sec1Bytes = new Uint8Array(newCount1 * 12);
+    { let o=0;
+      for(const raw of patchedSec1Parts){ sec1Bytes.set(raw, o); o += 12; }
+      sec1Bytes.set(orphanBytes, o); o += orphanBytes.length;
+      for(const raw of newAvtoSec1Rows){ sec1Bytes.set(raw, o); o += 12; }
+    }
+
+    // патчим координаты у совпавших записей секции 2, остальное содержимое не трогаем;
+    // добавляем новые обычные камеры (type3) и новые пары Автодории, пересортировываем по широте
+    let patchedSec2Parts = sec2Records.map((r, i) => {
+      if(sec2Updates.has(i)){
+        const {latRaw, lonRaw} = sec2Updates.get(i);
+        const patched = r.raw.slice();
+        const pdv = new DataView(patched.buffer);
+        pdv.setUint32(0, latRaw, true);
+        pdv.setUint32(4, lonRaw, true);
+        return {latRaw, raw: patched};
+      }
+      return {latRaw: Math.round(r.lat*100000), raw: r.raw};
+    });
+    if(newCameraSec2Records.length || newAvtoSec2Records.length){
+      patchedSec2Parts = patchedSec2Parts.concat(newCameraSec2Records).concat(newAvtoSec2Records);
+      patchedSec2Parts.sort((a,b) => a.latRaw - b.latRaw);
+    }
+    const newCount2 = patchedSec2Parts.length;
+    let sec2Bytes = new Uint8Array(newCount2 * 14);
+    { let o=0; for(const {raw} of patchedSec2Parts){ sec2Bytes.set(raw, o); o += 14; } }
+
+    const sec2EndOrig = sec1End + origCount2*14; // где в исходном файле кончается секция 2
+    const tail = baseBytes.slice(sec2EndOrig); // хвост-паддинг после секции 2, без изменений
+
+    headDv.setUint32(1028, newCount1, true);
+    headDv.setUint32(1032, newCount2, true);
+
+    const total = new Uint8Array(head.length + sec1Bytes.length + sec2Bytes.length + tail.length);
+    let off = 0;
+    total.set(head, off); off += head.length;
+    total.set(sec1Bytes, off); off += sec1Bytes.length;
+    total.set(sec2Bytes, off); off += sec2Bytes.length;
+    total.set(tail, off);
+
+    log(`Секция 1: ${newCount1} записей (обновлено: ${sec1Updates.size}, восстановлено зеркал: ${orphanMirror.length}, зеркал Автодории: ${newAvtoZones})`, 'ok');
+    log(`Секция 2: ${newCount2} записей (обновлены координаты у ${sec2Updates.size}, новых камер: ${genuinelyNewCameras.length}, новых зон Автодории: ${newAvtoZones})`, 'ok');
+    log(`Итоговый размер файла: ${total.length} байт`, 'ok');
+
+    const blob = new Blob([total], {type:'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    const outName = baseFile.name.replace(/\.hdr$/i,'') + '_NEW.hdr';
+    downloadLink.href = url;
+    downloadLink.download = outName;
+    downloadLink.textContent = `скачать ${outName}`;
+    downloadLink.classList.add('show');
+    log('Готово.', 'ok');
+  }catch(err){
+    log('Ошибка: ' + err.message, 'err');
+    console.error(err);
+  }
+});
+</script>
+</body>
+</html>
